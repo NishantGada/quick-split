@@ -5,7 +5,7 @@ from config.dbconfig import *
 from auth import auth_bp
 from groups import groups_bp
 from group_members import group_members_bp
-# from expense_category import expense_category_bp
+from expenses import expenses_bp
 from users import users_bp
 
 app = Flask(__name__)
@@ -15,7 +15,7 @@ app.register_blueprint(users_bp)
 app.register_blueprint(auth_bp)
 app.register_blueprint(groups_bp)
 app.register_blueprint(group_members_bp)
-# app.register_blueprint(expense_category_bp)
+app.register_blueprint(expenses_bp)
 
 @app.route('/')
 def root():
