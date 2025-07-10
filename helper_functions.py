@@ -3,8 +3,9 @@ from functools import wraps
 
 from config.dbconfig import get_connection
 
+
 def validate_request(*args):
-    if not all([ args ]):
+    if not all([args]):
         print("Request body error!")
         return False
     return True
@@ -44,3 +45,16 @@ def return_400_error_response(e):
 
 def return_404_not_found(e):
     return jsonify({"success": False, "message": f"An error occurred: {e}"}), 404
+
+
+def return_200_response(message, data):
+    return (
+        jsonify(
+            {
+                "success": True,
+                "message": message,
+                "data": data,
+            }
+        ),
+        200,
+    )
