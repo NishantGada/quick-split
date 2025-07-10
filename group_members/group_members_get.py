@@ -22,15 +22,29 @@ def get_group_members_helper(user_id, group_id):
     print("fetching all members")
     cursor.execute("SELECT user_id FROM group_members WHERE group_id = %s", (group_id,))
     members = cursor.fetchall()
-    cursor.close()
-    connection.close()
 
     # Check if user is part of the group
     member_ids = [member["user_id"] for member in members]
     if user_id not in member_ids:
         return None, "User is not a member of this group"
 
-    return members, None
+    # Build a flat list of {name, id} dicts
+    flat_members = []
+    for member in members:
+        cursor.execute(
+            "SELECT first_name FROM users WHERE user_id = %s", (member["user_id"],)
+        )
+        user = cursor.fetchone()
+        flat_members.append({
+            "id": member["user_id"],
+            "name": user["first_name"] if user else None
+        })
+
+    cursor.close()
+    connection.close()
+
+    return flat_members, None
+
 
 
 @group_members_bp.route("/group/members/<string:group_id>", methods=["GET"])
@@ -43,15 +57,13 @@ def get_group_members(group_id):
     if error:
         return return_404_not_found(error)
 
-    member_ids = [member["user_id"] for member in members]
-
     print("returning success response")
     return (
         jsonify(
             {
                 "success": True,
                 "message": "All group members fetched successfully",
-                "data": {"members": member_ids},
+                "data": {"members": members},
             }
         ),
         200,
