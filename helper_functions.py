@@ -58,3 +58,17 @@ def return_200_response(message, data):
         ),
         200,
     )
+
+
+def get_paid_by_name_from_paid_by_id(cursor, paid_by_user_id):
+    cursor.execute("SELECT first_name, last_name FROM users WHERE user_id = %s", (paid_by_user_id,),)
+    result = cursor.fetchall()
+    name = result[0]["first_name"] + " " + result[0]["last_name"]
+    return name
+
+
+def get_group_name_from_group_id(cursor, group_id):
+    cursor.execute("SELECT group_name FROM `groups` WHERE group_id = %s", (group_id,),)
+    result = cursor.fetchall()
+    group_name = result[0]["group_name"]
+    return group_name
