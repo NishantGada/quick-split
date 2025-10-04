@@ -8,6 +8,8 @@ from helper_functions import (
     return_200_response,
     return_400_error_response,
     return_404_not_found,
+    get_paid_by_name_from_paid_by_id,
+    get_group_name_from_group_id,
 )
 from . import expenses_bp
 from group_members.group_members_get import get_group_members_helper
@@ -29,21 +31,24 @@ def get_created_at_datetime_object(expense):
 @auth_required
 def get_all_expenses():
     connection = get_connection()
-    cursor = connection.cursor()
+    cursor = connection.cursor(dictionary=True)
 
     cursor.execute("SELECT * FROM expenses")
     expenses = cursor.fetchall()
-    print("expenses: ", expenses)
 
-    return (
-        jsonify(
-            {
-                "success": True,
-                "message": "Expense details fetched successfully",
-                "data": {"expenses": expenses, "count": len(expenses)},
-            }
-        ),
-        200,
+    for expense in expenses:
+        name = get_paid_by_name_from_paid_by_id(cursor, expense["paid_by"])
+        expense["paid_by"] = name
+
+    for expense in expenses:
+        group_id = expense.pop("group_id")
+        expense.pop("expense_id")
+        group_name = get_group_name_from_group_id(cursor, group_id)
+        expense["group_name"] = group_name
+
+    return return_200_response(
+        "Expense details fetched successfully",
+        {"expenses": expenses, "count": len(expenses)},
     )
 
 
@@ -54,7 +59,7 @@ def get_expense_details_by_expense_id(expense_id):
     cursor = connection.cursor(dictionary=True)
 
     cursor.execute(
-        "SELECT paid_by, description, amount, expense_date, created_at FROM expenses WHERE expense_id = %s",
+        "SELECT paid_by, description, amount, expense_date, created_at, updated_at FROM expenses WHERE expense_id = %s",
         (expense_id,),
     )
     expense = cursor.fetchone()
@@ -63,6 +68,7 @@ def get_expense_details_by_expense_id(expense_id):
 
     expense = get_expense_date_object(expense)
     expense = get_created_at_datetime_object(expense)
+    expense["paid_by"] = get_paid_by_name_from_paid_by_id(cursor, expense["paid_by"])
 
     cursor.execute(
         """
@@ -78,7 +84,7 @@ def get_expense_details_by_expense_id(expense_id):
     # Format shares into a flat list
     shares = [
         {
-            "id": row["user_id"],
+            "user_id": row["user_id"],
             "name": row["first_name"],
             "share_amount": float(row["amount_owed"]),
         }
@@ -96,10 +102,13 @@ def get_all_expenses_for_a_group(group_id):
     connection = get_connection()
     cursor = connection.cursor(dictionary=True)
 
+    group_name = get_group_name_from_group_id(cursor, group_id)
+
     cursor.execute("SELECT * FROM expenses WHERE group_id = %s", (group_id,))
     expenses = cursor.fetchall()
 
     for expense in expenses:
+        expense.pop("group_id")
         expense = get_expense_date_object(expense)
         expense = get_created_at_datetime_object(expense)
 
@@ -117,7 +126,7 @@ def get_all_expenses_for_a_group(group_id):
         # Format shares into a flat list
         shares = [
             {
-                "id": row["user_id"],
+                "user_id": row["user_id"],
                 "name": row["first_name"],
                 "share_amount": float(row["amount_owed"]),
             }
@@ -131,11 +140,15 @@ def get_all_expenses_for_a_group(group_id):
             "SELECT first_name FROM users WHERE user_id = %s", (expense["paid_by"],)
         )
         user = cursor.fetchone()
-        expense["paid_by_name"] = user["first_name"] if user else None
+        expense["paid_by"] = get_paid_by_name_from_paid_by_id(
+            cursor, expense["paid_by"]
+        )
+        # expense["paid_by_name"] = user["first_name"] if user else None
 
     cursor.close()
     connection.close()
 
     return return_200_response(
-        "All expenses for group fetched successfully", {"expenses": expenses}
+        "All expenses for group fetched successfully",
+        {"count": len(expenses), "group_name": group_name, "expenses": expenses},
     )

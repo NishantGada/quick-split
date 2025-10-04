@@ -5,6 +5,7 @@ from helper_functions import (
     auth_required,
     return_400_error_response,
     return_404_not_found,
+    return_200_response,
 )
 from . import group_members_bp
 
@@ -15,9 +16,10 @@ def get_group_members_helper(user_id, group_id):
 
     print("checking if group exists")
     cursor.execute("SELECT group_name FROM `groups` WHERE group_id = %s", (group_id,))
-    group = cursor.fetchone()
-    if not group:
+    result = cursor.fetchone()
+    if not result:
         return None, "Group not found"
+    group_name = result["group_name"]
 
     print("fetching all members")
     cursor.execute("SELECT user_id FROM group_members WHERE group_id = %s", (group_id,))
@@ -35,16 +37,14 @@ def get_group_members_helper(user_id, group_id):
             "SELECT first_name FROM users WHERE user_id = %s", (member["user_id"],)
         )
         user = cursor.fetchone()
-        flat_members.append({
-            "id": member["user_id"],
-            "name": user["first_name"] if user else None
-        })
+        flat_members.append(
+            {"user_id": member["user_id"], "name": user["first_name"] if user else None}
+        )
 
     cursor.close()
     connection.close()
 
-    return flat_members, None
-
+    return flat_members, group_name, None
 
 
 @group_members_bp.route("/group/members/<string:group_id>", methods=["GET"])
@@ -52,19 +52,12 @@ def get_group_members_helper(user_id, group_id):
 def get_group_members(group_id):
     user_id = request.user["user_id"]
 
-    members, error = get_group_members_helper(user_id, group_id)
+    members, group_name, error = get_group_members_helper(user_id, group_id)
 
     if error:
         return return_404_not_found(error)
 
-    print("returning success response")
-    return (
-        jsonify(
-            {
-                "success": True,
-                "message": "All group members fetched successfully",
-                "data": {"members": members},
-            }
-        ),
-        200,
+    return return_200_response(
+        "All group members fetched successfully",
+        {"group_name": group_name, "members": members},
     )
