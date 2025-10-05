@@ -60,7 +60,7 @@ def return_200_response(message, data):
     )
 
 
-def get_paid_by_name_from_paid_by_id(cursor, paid_by_user_id):
+def get_user_name_by_user_id(cursor, paid_by_user_id):
     cursor.execute("SELECT first_name, last_name FROM users WHERE user_id = %s", (paid_by_user_id,),)
     result = cursor.fetchall()
     name = result[0]["first_name"] + " " + result[0]["last_name"]
