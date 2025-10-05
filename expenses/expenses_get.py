@@ -1,6 +1,7 @@
 from flask import request, jsonify
 import uuid
 from datetime import datetime, date
+from collections import defaultdict
 
 from config.dbconfig import get_connection
 from helper_functions import (
@@ -8,7 +9,7 @@ from helper_functions import (
     return_200_response,
     return_400_error_response,
     return_404_not_found,
-    get_paid_by_name_from_paid_by_id,
+    get_user_name_by_user_id,
     get_group_name_from_group_id,
 )
 from . import expenses_bp
@@ -37,7 +38,7 @@ def get_all_expenses():
     expenses = cursor.fetchall()
 
     for expense in expenses:
-        name = get_paid_by_name_from_paid_by_id(cursor, expense["paid_by"])
+        name = get_user_name_by_user_id(cursor, expense["paid_by"])
         expense["paid_by"] = name
 
     for expense in expenses:
@@ -68,7 +69,7 @@ def get_expense_details_by_expense_id(expense_id):
 
     expense = get_expense_date_object(expense)
     expense = get_created_at_datetime_object(expense)
-    expense["paid_by"] = get_paid_by_name_from_paid_by_id(cursor, expense["paid_by"])
+    expense["paid_by"] = get_user_name_by_user_id(cursor, expense["paid_by"])
 
     cursor.execute(
         """
@@ -140,7 +141,7 @@ def get_all_expenses_for_a_group(group_id):
             "SELECT first_name FROM users WHERE user_id = %s", (expense["paid_by"],)
         )
         user = cursor.fetchone()
-        expense["paid_by"] = get_paid_by_name_from_paid_by_id(
+        expense["paid_by"] = get_user_name_by_user_id(
             cursor, expense["paid_by"]
         )
         # expense["paid_by_name"] = user["first_name"] if user else None
@@ -152,3 +153,60 @@ def get_all_expenses_for_a_group(group_id):
         "All expenses for group fetched successfully",
         {"count": len(expenses), "group_name": group_name, "expenses": expenses},
     )
+
+
+@expenses_bp.route("/user/balances", methods=["GET"])
+@auth_required
+def get_user_balances():
+    connection = get_connection()
+    cursor = connection.cursor(dictionary=True)
+
+    auth_user = request.user["user_id"]
+
+    cursor.execute("""
+        SELECT user_id, SUM(amount_owed) AS total_receiving
+        FROM expense_shares
+        WHERE owes_to = %s
+        GROUP BY user_id
+    """, (auth_user,))
+    results = cursor.fetchall()
+
+
+    amount_receiving = 0
+    receives_list = {}
+    for result in results:
+        amount_receiving += float(result["total_receiving"])
+        name = get_user_name_by_user_id(cursor, result["user_id"])
+        receives_list[name] = float(result["total_receiving"])
+    
+
+    cursor.execute("""
+        SELECT owes_to, SUM(amount_owed) AS total_owed
+        FROM expense_shares
+        WHERE user_id = %s AND owes_to IS NOT NULL
+        GROUP BY owes_to
+    """, (auth_user,))
+    results = cursor.fetchall()
+
+
+    amount_owed = 0
+    owes_list = {}
+    for result in results:
+        amount_owed += float(result["total_owed"])
+        name = get_user_name_by_user_id(cursor, result["owes_to"])
+        owes_list[name] = float(result["total_owed"])
+
+
+    net_balances = defaultdict(float)
+    for user, amount in receives_list.items():
+        net_balances[user] += amount  # money they owe you
+    for user, amount in owes_list.items():
+        net_balances[user] -= amount  # money you owe them
+
+
+    data = {
+        "balance": amount_receiving - amount_owed,
+        "net_balances": net_balances
+    }
+
+    return return_200_response("yay", data)
