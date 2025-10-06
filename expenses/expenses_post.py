@@ -75,19 +75,19 @@ def add_new_expense():
             share_amount = -share_amount
             cursor.execute(
                 """
-                INSERT INTO expense_shares (expense_id, user_id, owes_to, amount_owed)
-                VALUES (%s, %s, %s, %s)
+                INSERT INTO expense_shares (expense_id, user_id, owes_to, amount_owed, group_id)
+                VALUES (%s, %s, %s, %s, %s)
             """,
-                (expense_id, user_id, None, share_amount),
+                (expense_id, user_id, None, share_amount, group_id),
             )
         else:
             # print(user_id, "'s share_amount: ", share_amount)
             cursor.execute(
                 """
-                INSERT INTO expense_shares (expense_id, user_id, owes_to, amount_owed)
-                VALUES (%s, %s, %s, %s)
+                INSERT INTO expense_shares (expense_id, user_id, owes_to, amount_owed, group_id)
+                VALUES (%s, %s, %s, %s, %s)
             """,
-                (expense_id, user_id, paid_by, share_amount),
+                (expense_id, user_id, paid_by, share_amount, group_id),
             )
 
         # cursor.execute("""
