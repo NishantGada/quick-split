@@ -141,9 +141,7 @@ def get_all_expenses_for_a_group(group_id):
             "SELECT first_name FROM users WHERE user_id = %s", (expense["paid_by"],)
         )
         user = cursor.fetchone()
-        expense["paid_by"] = get_user_name_by_user_id(
-            cursor, expense["paid_by"]
-        )
+        expense["paid_by"] = get_user_name_by_user_id(cursor, expense["paid_by"])
         # expense["paid_by_name"] = user["first_name"] if user else None
 
     cursor.close()
@@ -155,22 +153,17 @@ def get_all_expenses_for_a_group(group_id):
     )
 
 
-@expenses_bp.route("/user/balances", methods=["GET"])
-@auth_required
-def get_user_balances():
-    connection = get_connection()
-    cursor = connection.cursor(dictionary=True)
-
-    auth_user = request.user["user_id"]
-
-    cursor.execute("""
+def get_user_balances_helper(cursor, user_id):
+    cursor.execute(
+        """
         SELECT user_id, SUM(amount_owed) AS total_receiving
         FROM expense_shares
         WHERE owes_to = %s
         GROUP BY user_id
-    """, (auth_user,))
+    """,
+        (user_id,),
+    )
     results = cursor.fetchall()
-
 
     amount_receiving = 0
     receives_list = {}
@@ -178,16 +171,17 @@ def get_user_balances():
         amount_receiving += float(result["total_receiving"])
         name = get_user_name_by_user_id(cursor, result["user_id"])
         receives_list[name] = float(result["total_receiving"])
-    
 
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT owes_to, SUM(amount_owed) AS total_owed
         FROM expense_shares
         WHERE user_id = %s AND owes_to IS NOT NULL
         GROUP BY owes_to
-    """, (auth_user,))
+    """,
+        (user_id,),
+    )
     results = cursor.fetchall()
-
 
     amount_owed = 0
     owes_list = {}
@@ -196,6 +190,71 @@ def get_user_balances():
         name = get_user_name_by_user_id(cursor, result["owes_to"])
         owes_list[name] = float(result["total_owed"])
 
+    net_balances = defaultdict(float)
+    for user, amount in receives_list.items():
+        net_balances[user] += amount  # money they owe you
+    for user, amount in owes_list.items():
+        net_balances[user] -= amount  # money you owe them
+
+    data = {"balance": amount_receiving - amount_owed, "net_balances": net_balances}
+
+    return data
+
+
+@expenses_bp.route("/user/balances", methods=["GET"])
+@auth_required
+def get_user_balances():
+    connection = get_connection()
+    cursor = connection.cursor(dictionary=True)
+
+    auth_user = request.user["user_id"]
+    data = get_user_balances_helper(cursor, auth_user)
+	
+    return return_200_response("yay", data)
+
+
+def get_user_balances_based_on_group_id_helper(cursor, user_id, group_id):
+    cursor.execute(
+        """
+        SELECT user_id, SUM(amount_owed) AS total_receiving
+        FROM expense_shares
+        WHERE owes_to = %s AND group_id = %s
+        GROUP BY user_id
+    """,
+        (
+            user_id,
+            group_id,
+        ),
+    )
+    results = cursor.fetchall()
+
+    amount_receiving = 0
+    receives_list = {}
+    for result in results:
+        amount_receiving += float(result["total_receiving"])
+        name = get_user_name_by_user_id(cursor, result["user_id"])
+        receives_list[name] = float(result["total_receiving"])
+
+    cursor.execute(
+        """
+        SELECT owes_to, SUM(amount_owed) AS total_owed
+        FROM expense_shares
+        WHERE user_id = %s AND owes_to IS NOT NULL AND group_id = %s
+        GROUP BY owes_to
+    """,
+        (
+            user_id,
+            group_id,
+        ),
+    )
+    results = cursor.fetchall()
+
+    amount_owed = 0
+    owes_list = {}
+    for result in results:
+        amount_owed += float(result["total_owed"])
+        name = get_user_name_by_user_id(cursor, result["owes_to"])
+        owes_list[name] = float(result["total_owed"])
 
     net_balances = defaultdict(float)
     for user, amount in receives_list.items():
@@ -203,10 +262,18 @@ def get_user_balances():
     for user, amount in owes_list.items():
         net_balances[user] -= amount  # money you owe them
 
+    data = {"balance": amount_receiving - amount_owed, "net_balances": net_balances}
 
-    data = {
-        "balance": amount_receiving - amount_owed,
-        "net_balances": net_balances
-    }
+    return data
+
+
+@expenses_bp.route("/user/balances/<string:group_id>", methods=["GET"])
+@auth_required
+def get_user_balances_based_on_group_id(group_id):
+    connection = get_connection()
+    cursor = connection.cursor(dictionary=True)
+
+    auth_user = request.user["user_id"]
+    data = get_user_balances_based_on_group_id_helper(cursor, auth_user, group_id)
 
     return return_200_response("yay", data)
