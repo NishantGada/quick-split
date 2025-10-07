@@ -34,7 +34,7 @@ def get_all_groups():
             {
                 "success": True,
                 "message": "All groups fetched successfully",
-                "data": {"groups": groups},
+                "data": {"count": len(groups), "groups": groups},
             }
         ),
         200,

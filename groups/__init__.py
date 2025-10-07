@@ -4,3 +4,4 @@ groups_bp = Blueprint("groups", __name__)
 
 from . import groups_post
 from . import groups_get
+from . import groups_delete
