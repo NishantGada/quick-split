@@ -35,17 +35,25 @@ def add_new_expense():
         or not data["expense_date"]
     ):
         return return_400_error_response("Missing required param")
+    print("Input data validation complete.")
+
 
     if not splits or not isinstance(splits, list):
         return return_400_error_response("Invalid splits array")
+    print("splits array validation check complete.")
+
 
     # members_in_group = get_group_members_helper(auth_user, group_id)
     total_of_shares = round(sum(float(s["share_amount"]) for s in splits), 2)
     if total_of_shares != data["amount"]:
         return return_400_error_response("Incorrect splits added")
+    print("Total share calculation and validation, complete.")
+
 
     if any("share_amount" not in split for split in splits):
         return return_400_error_response("Each split must include 'share_amount'")
+    print("Share amount validation, complete.")
+
 
     # Insert into expenses table
     expense_id = str(uuid.uuid4())
@@ -63,6 +71,8 @@ def add_new_expense():
             data["expense_date"],
         ),
     )
+    print("Successfully inserted data into expenses table. ")
+
 
     # Insert shares into expense_shares table
     for split in splits:
@@ -89,6 +99,7 @@ def add_new_expense():
             """,
                 (expense_id, user_id, paid_by, share_amount, group_id),
             )
+    print("Successfully inserted data into expense shares table. ")
 
         # cursor.execute("""
         #     INSERT INTO expense_shares (expense_id, user_id, amount_owed)
