@@ -23,6 +23,20 @@ def create_group():
 
     connection = get_connection()
     cursor = connection.cursor()
+
+    cursor.execute("SELECT group_name FROM `groups`")
+    results = cursor.fetchall()
+    print('results: ', results)
+    existing_group_names = [row[0] for row in results]
+
+    # Check if group name already exists
+    if data["group_name"] in existing_group_names:
+        print("Group already exists!")
+
+        return jsonify({
+            "success": False, 
+            "message": "Group name already exists!"
+        }), 400
     
     try:
         group_id = str(uuid.uuid4())
