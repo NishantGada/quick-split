@@ -34,5 +34,5 @@ def delete_expense(expense_id):
                 "data": {"expense_id": expense_id},
             }
         ),
-        200,
+        204,
     )
